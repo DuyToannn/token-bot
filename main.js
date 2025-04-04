@@ -51,8 +51,8 @@ async function fetchAndDisplayAccounts(type) {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${account._account}</td>
-                <td style="color: ${account.is_locked ? 'red' : 'green'}">${account.is_locked ? 'Đã đóng băng' : 'Chưa đóng băng'}</td>
-                <td style="color: ${account.token_expired ? 'red' : 'green'}">${account.token_expired ? 'Đã vô hiệu hóa' : 'Chưa vô hiệu hóa'}</td>
+                <td style="color: ${account.is_locked ? 'red' : 'green'}">${account.is_locked ? 'Đã Khóa' : 'Chưa khóa'}</td>
+                <td style="color: ${account.token_expired ? 'red' : 'green'}">${account.token_expired ? 'Đã đăng xuất' : 'Chưa đăng xuất'}</td>
             `;
             tbody.appendChild(row);
         });
@@ -64,9 +64,98 @@ async function fetchAndDisplayAccounts(type) {
 // Lấy dữ liệu khi trang được tải
 document.addEventListener('DOMContentLoaded', () => {
     fetchAndDisplayAccounts('f8bet');
+    fetchAndDisplayApiAccounts();
 });
 
-// Cập nhật dữ liệu sau khi form được submit thành công
-const updateTables = () => {
-    fetchAndDisplayAccounts('f8bet');
-};
+// Fetch and display API accounts
+async function fetchApiAccounts() {
+    try {
+        const response = await fetch('/api/api-accounts');
+        if (!response.ok) throw new Error('Network response was not ok');
+        const accounts = await response.json();
+        
+        const tbody = document.querySelector('#apiAccountsTable tbody');
+        tbody.innerHTML = '';
+        
+        accounts.forEach(account => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${account.username}</td>
+                <td>${account.password}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error fetching API accounts:', error);
+    }
+}
+
+// Cập nhật event listener cho fetchAccountsBtn
+document.addEventListener('DOMContentLoaded', () => {
+    const fetchAccountsBtn = document.getElementById('fetchAccountsBtn');
+    if (fetchAccountsBtn) {
+        // Xóa tất cả event listener cũ (nếu có)
+        const newBtn = fetchAccountsBtn.cloneNode(true);
+        fetchAccountsBtn.replaceWith(newBtn);
+        
+        // Đăng ký event listener mới
+        newBtn.addEventListener('click', async () => {
+            try {
+                // Hiển thị trạng thái đang tải
+                newBtn.textContent = 'Đang lấy tài khoản...';
+                newBtn.disabled = true;
+                
+                const response = await fetch('/api/fetch-accounts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                console.log('API Response:', result);
+
+                if (response.ok && result.success) {
+                    // Cập nhật cả hai bảng ngay lập tức
+                    await Promise.all([
+                        fetchAndDisplayAccounts('f8bet'),
+                        fetchAndDisplayApiAccounts()
+                    ]);
+                    alert(result.message);
+                } else {
+                    alert(`Lỗi: ${result.message}\n${result.error || ''}`);
+                }
+            } catch (error) {
+                console.error('Lỗi:', error);
+                alert(`Lỗi: ${error.message}`);
+            } finally {
+                // Khôi phục trạng thái nút
+                newBtn.textContent = 'Lấy tài khoản mới';
+                newBtn.disabled = false;
+            }
+        });
+    }
+});
+
+async function fetchAndDisplayApiAccounts() {
+    try {
+        const response = await fetch('/api/api-accounts');
+        if (!response.ok) throw new Error('Network response was not ok');
+        const accounts = await response.json();
+        
+        const tbody = document.querySelector('#apiAccountsTable tbody');
+        tbody.innerHTML = '';
+        
+        accounts.forEach(account => {
+            const row = document.createElement('tr');
+            const date = new Date(account.created_at).toLocaleString();
+            row.innerHTML = `
+                <td>${account.username}</td>
+                <td>${account.password}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error fetching API accounts:', error);
+    }
+}

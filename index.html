@@ -25,6 +25,25 @@
             min-width: 300px;
         }
 
+        .form-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+        }
+
+        .form-wrapper {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .tables-wrapper {
+            flex: 2;
+            min-width: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
         .form-group {
             margin-bottom: 15px;
         }
@@ -61,14 +80,17 @@
         }
 
         .table-container {
-            margin-top: 30px;
-            padding: 20px;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         th,
@@ -98,6 +120,10 @@
                 gap: 20px;
             }
 
+            .form-container {
+                flex-direction: column;
+            }
+
             .form-section {
                 min-width: 100%;
             }
@@ -121,34 +147,54 @@
     <div class="container">
         <div class="form-section">
             <h2>F8BET</h2>
-            <form id="f8betForm">
-                <div class="form-group">
-                    <label for="f8bet_account">Tên tài khoản:</label>
-                    <input type="text" id="f8bet_account" name="_account" required>
+            <div class="form-container">
+                <div class="form-wrapper">
+                    <form id="f8betForm">
+                        <div class="form-group">
+                            <label for="f8bet_account">Tên tài khoản:</label>
+                            <input type="text" id="f8bet_account" name="_account" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="f8bet_pat">PAT:</label>
+                            <input type="text" id="f8bet_pat" name="_pat" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="f8bet_prt">PRT:</label>
+                            <input type="text" id="f8bet_prt" name="_prt" required>
+                        </div>
+                        <button type="submit">Gửi F8BET</button>
+                    </form>
+                    <button id="fetchAccountsBtn" style="margin-top: 20px; background-color: #2196F3;">Lấy tài khoản mới</button>
                 </div>
-                <div class="form-group">
-                    <label for="f8bet_pat">PAT:</label>
-                    <input type="text" id="f8bet_pat" name="_pat" required>
-                </div>
-                <div class="form-group">
-                    <label for="f8bet_prt">PRT:</label>
-                    <input type="text" id="f8bet_prt" name="_prt" required>
-                </div>
-                <button type="submit">Gửi F8BET</button>
-            </form>
+                
+                <div class="tables-wrapper">
+                    <div class="table-container">
+                        <h2>Tài khoản F8BET</h2>
+                        <table id="f8betTable">
+                            <thead>
+                                <tr>
+                                    <th>Tài khoản</th>
+                                    <th>Trạng thái đóng băng</th>
+                                    <th>Trạng thái vô hiệu hóa</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
 
-            <div class="table-container">
-                <h2>Tài khoản F8BET</h2>
-                <table id="f8betTable">
-                    <thead>
-                        <tr>
-                            <th>Tài khoản</th>
-                            <th>Trạng thái đóng băng</th>
-                            <th>Trạng thái vô hiệu hóa</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                    <div class="table-container">
+                        <h2>Tài khoản đã lấy từ API</h2>
+                        <table id="apiAccountsTable">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Password</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
