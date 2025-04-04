@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Submit MongoDB</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-between;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+
+        .form-section {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        .table-container {
+            margin-top: 30px;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 10px;
+                margin: 10px;
+            }
+
+            .container {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .form-section {
+                min-width: 100%;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+
+            input,
+            button {
+                padding: 12px 8px;
+            }
+
+            h2 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="form-section">
+            <h2>F8BET</h2>
+            <form id="f8betForm">
+                <div class="form-group">
+                    <label for="f8bet_account">Tên tài khoản:</label>
+                    <input type="text" id="f8bet_account" name="_account" required>
+                </div>
+                <div class="form-group">
+                    <label for="f8bet_pat">PAT:</label>
+                    <input type="text" id="f8bet_pat" name="_pat" required>
+                </div>
+                <div class="form-group">
+                    <label for="f8bet_prt">PRT:</label>
+                    <input type="text" id="f8bet_prt" name="_prt" required>
+                </div>
+                <button type="submit">Gửi F8BET</button>
+            </form>
+
+            <div class="table-container">
+                <h2>Tài khoản F8BET</h2>
+                <table id="f8betTable">
+                    <thead>
+                        <tr>
+                            <th>Tài khoản</th>
+                            <th>Trạng thái đóng băng</th>
+                            <th>Trạng thái vô hiệu hóa</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>
