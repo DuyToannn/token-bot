@@ -98,7 +98,7 @@ app.post('/api/fetch-accounts', async (req, res) => {
     let client;
     try {
         // Fetch accounts from the API
-        const apiResponse = await fetch('https://hservice.vn/api.php?soacc=all');
+        const apiResponse = await fetch('https://hservice.vn/api.php');
         const apiData = await apiResponse.json();
 
         console.log('API Response:', apiData);
