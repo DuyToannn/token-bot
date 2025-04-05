@@ -26,6 +26,7 @@
         }
 
         .form-container {
+            align-items: center;
             display: flex;
             flex-wrap: wrap;
             gap: 30px;
@@ -84,7 +85,7 @@
             padding: 15px;
             background-color: #f9f9f9;
             border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         table {
@@ -107,6 +108,18 @@
 
         tr:nth-child(even) {
             background-color: #f2f2f2;
+        }
+
+        .copy-btn {
+            padding: 2px 6px;
+            margin-left: 5px;
+            font-size: 12px;
+            width: auto;
+            background-color: #6c757d;
+        }
+
+        .copy-btn:hover {
+            background-color: #5a6268;
         }
 
         @media screen and (max-width: 768px) {
@@ -164,9 +177,10 @@
                         </div>
                         <button type="submit">Gửi F8BET</button>
                     </form>
-                    <button id="fetchAccountsBtn" style="margin-top: 20px; background-color: #2196F3;">Lấy tài khoản mới</button>
+                    <button id="fetchAccountsBtn" style="margin-top: 20px; background-color: #2196F3;">Lấy tài khoản
+                        mới</button>
                 </div>
-                
+
                 <div class="tables-wrapper">
                     <div class="table-container">
                         <h2>Tài khoản F8BET</h2>
@@ -183,12 +197,19 @@
                     </div>
 
                     <div class="table-container">
-                        <h2>Tài khoản đã lấy từ API</h2>
+                        <div class="" style="display: flex; align-items: center; justify-content: space-between;">
+                            <h2>Tài khoản đã lấy từ API</h2>
+                            <div class="table-actions">
+                                <button onclick="deleteAllApiAccounts()" class="delete-all-btn">Xóa tất cả</button>
+                            </div>
+                        </div>
                         <table id="apiAccountsTable">
                             <thead>
                                 <tr>
                                     <th>Username</th>
                                     <th>Password</th>
+                                    <th>Thời gian tạo</th>
+                                    <th>Hành động</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>

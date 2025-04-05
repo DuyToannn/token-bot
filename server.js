@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
 
 const app = express();
@@ -93,11 +93,12 @@ app.get('/api/accounts/:type', async (req, res) => {
         }
     }
 });
+
 app.post('/api/fetch-accounts', async (req, res) => {
     let client;
     try {
         // Fetch accounts from the API
-        const apiResponse = await fetch('https://hservice.vn/api.php?soacc=1');
+        const apiResponse = await fetch('https://hservice.vn/api.php?soacc=all');
         const apiData = await apiResponse.json();
 
         console.log('API Response:', apiData);
@@ -122,10 +123,11 @@ app.post('/api/fetch-accounts', async (req, res) => {
             throw new Error('Invalid account data format');
         }
 
-        // Store in f8bet collection - chỉ lưu username và password
+        // Store in f8bet collection - lưu username, password và thời gian
         const result = await collection.insertOne({
             username: account.username,
             password: account.password,
+            created_at: new Date() // Thêm thời gian tạo
         });
 
         res.status(200).json({
@@ -133,7 +135,8 @@ app.post('/api/fetch-accounts', async (req, res) => {
             message: 'Tài khoản đã được lấy và lưu thành công',
             account: {
                 username: account.username,
-                password: account.password
+                password: account.password,
+                created_at: new Date() // Thêm thời gian vào response
             }
         });
 
@@ -170,6 +173,72 @@ app.get('/api/api-accounts', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Có lỗi xảy ra khi lấy dữ liệu',
+            error: error.message
+        });
+    } finally {
+        if (client) {
+            await client.close();
+        }
+    }
+});
+
+// Add endpoint to delete a single API account
+app.delete('/api/api-accounts/:id', async (req, res) => {
+    let client;
+    try {
+        client = await MongoClient.connect(mongoUrl);
+        const db = client.db('account');
+        const collection = db.collection('f8bet_accounts');
+
+        // Validate ObjectId
+        if (!ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: 'ID không hợp lệ'
+            });
+        }
+
+        const result = await collection.deleteOne({ _id: new ObjectId(req.params.id) });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy tài khoản để xóa'
+            });
+        }
+    } catch (error) {
+        console.error('Lỗi:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Có lỗi xảy ra khi xóa tài khoản',
+            error: error.message
+        });
+    } finally {
+        if (client) {
+            await client.close();
+        }
+    }
+});
+
+// Add endpoint to delete all API accounts
+app.delete('/api/api-accounts', async (req, res) => {
+    let client;
+    try {
+        client = await MongoClient.connect(mongoUrl);
+        const db = client.db('account');
+        const collection = db.collection('f8bet_accounts');
+
+        const result = await collection.deleteMany({});
+
+        res.json({
+            success: true,
+            message: `Đã xóa ${result.deletedCount} tài khoản thành công`
+        });
+    } catch (error) {
+        console.error('Lỗi:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Có lỗi xảy ra khi xóa tài khoản',
             error: error.message
         });
     } finally {
