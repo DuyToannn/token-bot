@@ -1,13 +1,107 @@
+let accountCounter = 1;
+let accountsList = [];
+
+function addNewAccount() {
+    const container = document.getElementById('accounts-container');
+    const newEntry = document.createElement('div');
+    newEntry.className = 'account-entry';
+    newEntry.innerHTML = `
+        <div class="form-group">
+            <label for="f8bet_account_${accountCounter}">Tên tài khoản:</label>
+            <input type="text" id="f8bet_account_${accountCounter}" name="_account" required>
+        </div>
+        <div class="form-group">
+            <label for="f8bet_pat_${accountCounter}">PAT:</label>
+            <input type="text" id="f8bet_pat_${accountCounter}" name="_pat" required>
+        </div>
+        <div class="form-group">
+            <label for="f8bet_prt_${accountCounter}">PRT:</label>
+            <input type="text" id="f8bet_prt_${accountCounter}" name="_prt" required>
+        </div>
+        <button type="button" class="remove-account" onclick="removeAccount(this)">Xóa</button>
+    `;
+    container.appendChild(newEntry);
+    accountCounter++;
+
+    // Show remove button for first entry if there's more than one entry
+    const entries = container.getElementsByClassName('account-entry');
+    if (entries.length > 1) {
+        entries[0].querySelector('.remove-account').style.display = 'block';
+    }
+}
+
+function removeAccount(button) {
+    const entry = button.parentElement;
+    const container = document.getElementById('accounts-container');
+    container.removeChild(entry);
+
+    // Hide remove button for first entry if it's the only one left
+    const entries = container.getElementsByClassName('account-entry');
+    if (entries.length === 1) {
+        entries[0].querySelector('.remove-account').style.display = 'none';
+    }
+}
+
+function addAccountToList() {
+    const account = document.getElementById('f8bet_account').value;
+    const pat = document.getElementById('f8bet_pat').value;
+    const prt = document.getElementById('f8bet_prt').value;
+
+    if (!account || !pat || !prt) {
+        alert('Vui lòng điền đầy đủ thông tin tài khoản');
+        return;
+    }
+
+    // Thêm vào danh sách
+    accountsList.push({ _account: account, _pat: pat, _prt: prt });
+
+    // Hiển thị trong danh sách
+    const accountsListElement = document.getElementById('accounts-list');
+    const accountItem = document.createElement('div');
+    accountItem.className = 'account-item';
+    accountItem.innerHTML = `
+        <div class="account-info">
+            ${account}
+        </div>
+        <button type="button" class="remove-account-item" onclick="removeAccountFromList(${accountsList.length - 1})">Xóa</button>
+    `;
+    accountsListElement.appendChild(accountItem);
+
+    // Reset form
+    document.getElementById('f8bet_account').value = '';
+    document.getElementById('f8bet_pat').value = '';
+    document.getElementById('f8bet_prt').value = '';
+}
+
+function removeAccountFromList(index) {
+    accountsList.splice(index, 1);
+    updateAccountsList();
+}
+
+function updateAccountsList() {
+    const accountsListElement = document.getElementById('accounts-list');
+    accountsListElement.innerHTML = '';
+    accountsList.forEach((account, index) => {
+        const accountItem = document.createElement('div');
+        accountItem.className = 'account-item';
+        accountItem.innerHTML = `
+            <div class="account-info">
+                ${account._account}
+            </div>
+            <button type="button" class="remove-account-item" onclick="removeAccountFromList(${index})">Xóa</button>
+        `;
+        accountsListElement.appendChild(accountItem);
+    });
+}
+
 // Handle F8BET form submission
 document.getElementById('f8betForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const formData = {
-        _account: document.getElementById('f8bet_account').value,
-        _pat: document.getElementById('f8bet_pat').value,
-        _prt: document.getElementById('f8bet_prt').value,
-        type: 'f8bet'
-    };
+    if (accountsList.length === 0) {
+        alert('Vui lòng thêm ít nhất một tài khoản vào danh sách');
+        return;
+    }
 
     try {
         const response = await fetch('/api/submit', {
@@ -15,19 +109,24 @@ document.getElementById('f8betForm').addEventListener('submit', async (e) => {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(formData)
+            body: JSON.stringify({
+                type: 'f8bet',
+                accounts: accountsList
+            })
         });
 
         if (response.ok) {
-            alert('Dữ liệu F8BET đã được lưu thành công!');
-            document.getElementById('f8betForm').reset();
+            alert(`Đã lưu thành công ${accountsList.length} tài khoản!`);
+            // Reset form and list
+            accountsList = [];
+            document.getElementById('accounts-list').innerHTML = '';
             await fetchAndDisplayAccounts('f8bet');
         } else {
-            alert('Có lỗi xảy ra khi lưu dữ liệu F8BET!');
+            alert('Có lỗi xảy ra khi lưu dữ liệu!');
         }
     } catch (error) {
         console.error('Lỗi:', error);
-        alert('Có lỗi xảy ra khi lưu dữ liệu F8BET!');
+        alert('Có lỗi xảy ra khi lưu dữ liệu!');
     }
 });
 

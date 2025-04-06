@@ -183,6 +183,78 @@
                 font-size: 1.5em;
             }
         }
+
+        .account-entry {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            position: relative;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .add-account-btn {
+            background-color: #2196F3;
+        }
+
+        .remove-account {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #dc3545;
+            padding: 5px 10px;
+            width: auto;
+        }
+
+        .remove-account:hover {
+            background-color: #c82333;
+        }
+
+        .accounts-list {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+        }
+
+        .account-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        .account-item:last-child {
+            border-bottom: none;
+        }
+
+        .account-info {
+            flex: 1;
+        }
+
+        .remove-account-item {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .remove-account-item:hover {
+            background-color: #c82333;
+        }
     </style>
 </head>
 
@@ -205,7 +277,13 @@
                             <label for="f8bet_prt">PRT:</label>
                             <input type="text" id="f8bet_prt" name="_prt" required>
                         </div>
-                        <button type="submit">Gửi F8BET</button>
+                        <div class="form-actions">
+                            <button type="button" onclick="addAccountToList()" class="add-account-btn">Thêm vào danh sách</button>
+                            <button type="submit">Gửi tất cả</button>
+                        </div>
+                        <div id="accounts-list" class="accounts-list">
+                            <!-- Danh sách tài khoản sẽ được thêm vào đây -->
+                        </div>
                     </form>
                     <button id="fetchAccountsBtn" style="margin-top: 20px; background-color: #2196F3;">Lấy tài khoản
                         mới</button>

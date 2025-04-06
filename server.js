@@ -33,20 +33,33 @@ app.post('/api/submit', async (req, res) => {
             throw new Error('Loại form không hợp lệ');
         }
 
-        // Lưu dữ liệu
-        const result = await collection.insertOne({
-            _account: req.body._account, // Lưu tên tài khoản
-            _pat: req.body._pat,
-            _prt: req.body._prt,
-            is_locked: false,
-            token_expired: false,
-            created_at: new Date()
-        });
+        // Lưu nhiều tài khoản
+        const accounts = req.body.accounts || [];
+        if (accounts.length === 0) {
+            throw new Error('Không có tài khoản nào để lưu');
+        }
+
+        const results = [];
+        for (const account of accounts) {
+            if (!account._account || !account._pat || !account._prt) {
+                throw new Error('Thiếu thông tin tài khoản');
+            }
+
+            const result = await collection.insertOne({
+                _account: account._account,
+                _pat: account._pat,
+                _prt: account._prt,
+                is_locked: false,
+                token_expired: false,
+                created_at: new Date()
+            });
+            results.push(result.insertedId);
+        }
 
         res.status(200).json({
             success: true,
-            message: `Dữ liệu ${req.body.type.toUpperCase()} đã được lưu thành công`,
-            id: result.insertedId
+            message: `Đã lưu thành công ${results.length} tài khoản ${req.body.type.toUpperCase()}`,
+            ids: results
         });
 
     } catch (error) {
