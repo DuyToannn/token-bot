@@ -116,32 +116,46 @@ app.post('/api/fetch-accounts', async (req, res) => {
         const db = client.db('account');
         const collection = db.collection('f8bet_accounts');
 
-        // Lấy tài khoản đầu tiên từ mảng data
-        const account = apiData.data[0];
+        // Get existing usernames to check for duplicates
+        const existingAccounts = await collection.find({}, { projection: { username: 1 } }).toArray();
+        const existingUsernames = new Set(existingAccounts.map(acc => acc.username));
 
-        if (!account.username || !account.password) {
-            throw new Error('Invalid account data format');
+        // Filter out duplicates and store new accounts
+        const newAccounts = [];
+        for (const account of apiData.data) {
+            if (!account.username || !account.password) {
+                continue;
+            }
+
+            if (!existingUsernames.has(account.username)) {
+                const result = await collection.insertOne({
+                    username: account.username,
+                    password: account.password,
+                    created_at: new Date()
+                });
+                newAccounts.push({
+                    _id: result.insertedId,
+                    username: account.username,
+                    password: account.password,
+                    created_at: new Date()
+                });
+                existingUsernames.add(account.username);
+            }
         }
 
-        // Store in f8bet collection - lưu username, password và thời gian
-        const result = await collection.insertOne({
-            username: account.username,
-            password: account.password,
-            created_at: new Date() // Thêm thời gian tạo
-        });
+        // Get all accounts after insertion, sorted by creation time
+        const allAccounts = await collection.find({})
+            .sort({ created_at: -1 })
+            .toArray();
 
         res.status(200).json({
             success: true,
-            message: 'Tài khoản đã được lấy và lưu thành công',
-            account: {
-                username: account.username,
-                password: account.password,
-                created_at: new Date() // Thêm thời gian vào response
-            }
+            message: `Đã thêm ${newAccounts.length} tài khoản mới`,
+            accounts: allAccounts
         });
 
     } catch (error) {
-        console.error('Lỗi chi tiết:', error); // Để debug
+        console.error('Lỗi chi tiết:', error);
         res.status(500).json({
             success: false,
             message: 'Có lỗi xảy ra khi lấy và lưu tài khoản',
@@ -160,14 +174,34 @@ app.get('/api/api-accounts', async (req, res) => {
     try {
         client = await MongoClient.connect(mongoUrl);
         const db = client.db('account');
-        const collection = db.collection('f8bet_accounts');
+        const apiAccountsCollection = db.collection('f8bet_accounts');
+        const f8betCollection = db.collection('f8bet');
 
-        const accounts = await collection.find({})
-            .sort({ created_at: -1 })
-            .limit(5)
+        // Get all API accounts
+        const apiAccounts = await apiAccountsCollection.find({})
             .toArray();
 
-        res.json(accounts);
+        // Get all used usernames from f8bet collection
+        const usedAccounts = await f8betCollection.find({}, { projection: { _account: 1 } }).toArray();
+        const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
+
+        // Add is_used field to each API account
+        const accountsWithStatus = apiAccounts.map(account => ({
+            ...account,
+            is_used: usedUsernames.has(account.username)
+        }));
+
+        // Sort accounts: unused first, then by creation time (newest first)
+        const sortedAccounts = accountsWithStatus.sort((a, b) => {
+            // First sort by usage status
+            if (a.is_used !== b.is_used) {
+                return a.is_used ? 1 : -1; // Unused accounts come first
+            }
+            // Then sort by creation time
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
+
+        res.json(sortedAccounts);
     } catch (error) {
         console.error('Lỗi:', error);
         res.status(500).json({

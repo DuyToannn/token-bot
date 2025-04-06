@@ -225,6 +225,9 @@ async function fetchAndDisplayApiAccounts() {
         const tbody = document.querySelector('#apiAccountsTable tbody');
         tbody.innerHTML = '';
 
+        // Sort accounts by creation time, newest first
+        accounts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
         accounts.forEach(account => {
             const row = document.createElement('tr');
             const date = new Date(account.created_at);
@@ -233,6 +236,7 @@ async function fetchAndDisplayApiAccounts() {
                 <td>${account.username} <button onclick="copyToClipboard('${account.username}')" class="copy-btn">Copy</button></td>
                 <td>${account.password} <button onclick="copyToClipboard('${account.password}')" class="copy-btn">Copy</button></td>
                 <td>${time}</td>
+                <td style="color: ${account.is_used ? 'red' : 'green'}">${account.is_used ? 'Đã sử dụng' : 'Chưa sử dụng'}</td>
                 <td><button onclick="deleteApiAccount('${account._id}', this)" class="delete-btn">Xóa</button></td>
             `;
             tbody.appendChild(row);
