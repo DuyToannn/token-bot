@@ -315,6 +315,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+async function reloadApiAccounts() {
+    const button = document.querySelector('.reload-btn');
+    const originalText = button.textContent;
+    button.textContent = 'Đang tải...';
+    button.disabled = true;
+
+    try {
+        await fetchAndDisplayApiAccounts();
+    } catch (error) {
+        console.error('Lỗi khi tải lại dữ liệu:', error);
+        alert('Có lỗi xảy ra khi tải lại dữ liệu');
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+    }
+}
+
 async function fetchAndDisplayApiAccounts() {
     try {
         const response = await fetch('/api/api-accounts');
@@ -324,8 +341,15 @@ async function fetchAndDisplayApiAccounts() {
         const tbody = document.querySelector('#apiAccountsTable tbody');
         tbody.innerHTML = '';
 
-        // Sort accounts by creation time, newest first
-        accounts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        // Sort accounts: unused first, then by creation time (newest first)
+        accounts.sort((a, b) => {
+            // First sort by usage status
+            if (a.is_used !== b.is_used) {
+                return a.is_used ? 1 : -1; // Unused accounts come first
+            }
+            // Then sort by creation time
+            return new Date(b.created_at) - new Date(a.created_at);
+        });
 
         accounts.forEach(account => {
             const row = document.createElement('tr');
@@ -342,5 +366,51 @@ async function fetchAndDisplayApiAccounts() {
         });
     } catch (error) {
         console.error('Error fetching API accounts:', error);
+        throw error; // Re-throw để hàm reloadApiAccounts có thể bắt lỗi
+    }
+}
+
+async function deleteUsedApiAccounts() {
+    if (!confirm('Bạn có chắc chắn muốn xóa tất cả tài khoản đã sử dụng?')) {
+        return;
+    }
+    
+    const button = document.querySelector('.delete-used-btn');
+    const originalText = button.textContent;
+    button.textContent = 'Đang xóa...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/api/api-accounts/used', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Xóa tất cả rows đã sử dụng khỏi bảng ngay lập tức
+            const tbody = document.querySelector('#apiAccountsTable tbody');
+            const rows = tbody.getElementsByTagName('tr');
+            for (let i = rows.length - 1; i >= 0; i--) {
+                const statusCell = rows[i].getElementsByTagName('td')[3];
+                if (statusCell.textContent.trim() === 'Đã sử dụng') {
+                    rows[i].remove();
+                }
+            }
+            alert(result.message);
+            // Cập nhật lại toàn bộ dữ liệu
+            await fetchAndDisplayApiAccounts();
+        } else {
+            alert(`Lỗi: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Error deleting used accounts:', error);
+        alert('Có lỗi xảy ra khi xóa tài khoản đã sử dụng. Vui lòng thử lại sau.');
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
     }
 }

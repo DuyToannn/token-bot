@@ -229,6 +229,49 @@ app.get('/api/api-accounts', async (req, res) => {
     }
 });
 
+// Add endpoint to delete used API accounts
+app.delete('/api/api-accounts/used', async (req, res) => {
+    let client;
+    try {
+        client = await MongoClient.connect(mongoUrl);
+        const db = client.db('account');
+        const apiAccountsCollection = db.collection('f8bet_accounts');
+        const f8betCollection = db.collection('f8bet');
+
+        // Get all used usernames from f8bet collection
+        const usedAccounts = await f8betCollection.find({}, { projection: { _account: 1 } }).toArray();
+        const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
+
+        if (usedUsernames.size === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'Không có tài khoản nào đã sử dụng để xóa'
+            });
+        }
+
+        // Delete all API accounts that are in the used usernames set
+        const result = await apiAccountsCollection.deleteMany({
+            username: { $in: Array.from(usedUsernames) }
+        });
+
+        res.status(200).json({
+            success: true,
+            message: `Đã xóa ${result.deletedCount} tài khoản đã sử dụng thành công`
+        });
+    } catch (error) {
+        console.error('Lỗi:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Có lỗi xảy ra khi xóa tài khoản đã sử dụng',
+            error: error.message
+        });
+    } finally {
+        if (client) {
+            await client.close();
+        }
+    }
+});
+
 // Add endpoint to delete a single API account
 app.delete('/api/api-accounts/:id', async (req, res) => {
     let client;
@@ -253,6 +296,11 @@ app.delete('/api/api-accounts/:id', async (req, res) => {
                 message: 'Không tìm thấy tài khoản để xóa'
             });
         }
+
+        res.json({
+            success: true,
+            message: 'Đã xóa tài khoản thành công'
+        });
     } catch (error) {
         console.error('Lỗi:', error);
         res.status(500).json({

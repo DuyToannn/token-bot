@@ -255,6 +255,23 @@
         .remove-account-item:hover {
             background-color: #c82333;
         }
+
+        .reload-btn {
+            background-color: #2196F3;
+            margin-right: 10px;
+        }
+
+        .reload-btn:hover {
+            background-color: #1976D2;
+        }
+
+        .delete-used-btn {
+            background-color: #dc3545;
+        }
+
+        .delete-used-btn:hover {
+            background-color: #c82333;
+        }
     </style>
 </head>
 
@@ -308,7 +325,8 @@
                         <div class="table-header">
                             <h2>Tài khoản đã lấy từ API</h2>
                             <div class="table-actions">
-                                <button onclick="deleteAllApiAccounts()" class="delete-all-btn">Xóa tất cả</button>
+                                <button onclick="reloadApiAccounts()" class="reload-btn">Tải lại</button>
+                                <button onclick="deleteUsedApiAccounts()" class="delete-used-btn">Xóa tài khoản đã sử dụng</button>
                             </div>
                         </div>
                         <div class="table-scroll-container">
