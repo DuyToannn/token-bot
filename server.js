@@ -110,6 +110,15 @@ app.get('/api/accounts/:type', async (req, res) => {
 app.post('/api/fetch-accounts', async (req, res) => {
     let client;
     try {
+        // Connect to MongoDB first to check used accounts
+        client = await MongoClient.connect(mongoUrl);
+        const db = client.db('account');
+        const f8betCollection = db.collection('f8bet');
+
+        // Get all used usernames from f8bet collection
+        const usedAccounts = await f8betCollection.find({}, { projection: { _account: 1 } }).toArray();
+        const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
+
         // Fetch accounts from the API
         const apiResponse = await fetch('https://hservice.vn/api.php');
         const apiData = await apiResponse.json();
@@ -124,22 +133,28 @@ app.post('/api/fetch-accounts', async (req, res) => {
             });
         }
 
-        // Connect to MongoDB
-        client = await MongoClient.connect(mongoUrl);
-        const db = client.db('account');
+        // Filter out accounts that are already used in f8bet collection
+        const unusedApiAccounts = apiData.data.filter(account => 
+            account.username && account.password && !usedUsernames.has(account.username)
+        );
+
+        if (unusedApiAccounts.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Không còn tài khoản mới nào khả dụng',
+                data: []
+            });
+        }
+
         const collection = db.collection('f8bet_accounts');
 
-        // Get existing usernames to check for duplicates
+        // Get existing usernames to check for duplicates in f8bet_accounts collection
         const existingAccounts = await collection.find({}, { projection: { username: 1 } }).toArray();
         const existingUsernames = new Set(existingAccounts.map(acc => acc.username));
 
         // Filter out duplicates and store new accounts
         const newAccounts = [];
-        for (const account of apiData.data) {
-            if (!account.username || !account.password) {
-                continue;
-            }
-
+        for (const account of unusedApiAccounts) {
             if (!existingUsernames.has(account.username)) {
                 const result = await collection.insertOne({
                     username: account.username,
