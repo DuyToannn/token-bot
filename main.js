@@ -672,65 +672,38 @@ async function deleteUsedApiAccountsJ88() {
     }
 }
 
-// Cấu hình cho từng loại
-const CONFIG = {
-    f8bet: {
-        prefix: 'f8bet',
-        accountInput: 'f8bet_account',
-        patInput: 'f8bet_pat',
-        prtInput: 'f8bet_prt',
-        accountsList: 'accounts-list',
-        apiTable: 'apiAccountsTable',
-        mainTable: 'f8betTable',
-        reloadBtn: '.reload-btn',
-        deleteUsedBtn: '.delete-used-btn',
-        fetchBtn: 'fetchAccountsBtn',
-        apiEndpoints: {
-            submit: '/api/submit',
-            fetch: '/api/fetch-accounts',
-            getAccounts: '/api/accounts/f8bet',
-            getApiAccounts: '/api/api-accounts',
-            deleteAccount: '/api/api-accounts/',
-            deleteUsed: '/api/api-accounts/used'
-        }
-    },
-    j88: {
-        prefix: 'j88',
-        accountInput: 'j88_account',
-        patInput: 'j88_pat',
-        prtInput: 'j88_prt',
-        accountsList: 'accounts-list-j88',
-        apiTable: 'apiAccountsTableJ88',
-        mainTable: 'j88Table',
-        reloadBtn: '.reload-btn-j88',
-        deleteUsedBtn: '.delete-used-btn-j88',
-        fetchBtn: 'fetchAccountsBtnJ88',
-        apiEndpoints: {
-            submit: '/api/submit',
-            fetch: '/api/fetch-accounts-j88',
-            getAccounts: '/api/accounts/j88_2',
-            getApiAccounts: '/api/api-accounts-j88',
-            deleteAccount: '/api/api-accounts-j88/',
-            deleteUsed: '/api/api-accounts-j88/used'
-        }
-    }
-};
-
-// Utility functions
-const $ = (selector) => document.querySelector(selector);
-const $$ = (selector) => document.querySelectorAll(selector);
-
 // Account management class
 class AccountManager {
+    static accountsLists = {
+        f8bet: [],
+        j88: []
+    };
+
     constructor(type) {
         this.config = CONFIG[type];
-        this.accountsList = [];
+        this.type = type;
         this.setupEventListeners();
+        this.isSubmitting = false; // Flag to prevent double submission
     }
 
     setupEventListeners() {
         // Form submission
-        $(`#${this.config.prefix}Form`).addEventListener('submit', (e) => this.handleSubmit(e));
+        const form = $(`#${this.config.prefix}Form`);
+        if (form) {
+            // Remove all existing listeners
+            const newForm = form.cloneNode(true);
+            form.parentNode.replaceChild(newForm, form);
+            
+            // Add new listener
+            newForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (this.isSubmitting) return; // Prevent double submission
+                
+                this.isSubmitting = true;
+                await this.handleSubmit();
+                this.isSubmitting = false;
+            });
+        }
         
         // Fetch accounts button
         const fetchBtn = $(`#${this.config.fetchBtn}`);
@@ -741,65 +714,28 @@ class AccountManager {
         }
     }
 
-    addAccount() {
-        const account = $(`#${this.config.accountInput}`).value;
-        const pat = $(`#${this.config.patInput}`).value;
-        const prt = $(`#${this.config.prtInput}`).value;
-
-        if (!account || !pat || !prt) {
-            alert('Vui lòng điền đầy đủ thông tin tài khoản');
-            return;
-        }
-
-        this.accountsList.push({ _account: account, _pat: pat, _prt: prt });
-        this.updateAccountsList();
-        this.resetForm();
-    }
-
-    removeAccount(index) {
-        this.accountsList.splice(index, 1);
-        this.updateAccountsList();
-    }
-
-    updateAccountsList() {
-        const listElement = $(`#${this.config.accountsList}`);
-        listElement.innerHTML = this.accountsList.map((account, index) => `
-            <div class="account-item">
-                <div class="account-info">${account._account}</div>
-                <button type="button" class="remove-account-item" onclick="accountManagers['${this.config.prefix}'].removeAccount(${index})">Xóa</button>
-            </div>
-        `).join('');
-    }
-
-    resetForm() {
-        $(`#${this.config.accountInput}`).value = '';
-        $(`#${this.config.patInput}`).value = '';
-        $(`#${this.config.prtInput}`).value = '';
-    }
-
-    async handleSubmit(e) {
-        e.preventDefault();
-        if (this.accountsList.length === 0) {
-            alert('Vui lòng thêm ít nhất một tài khoản vào danh sách');
-            return;
-        }
-
+    async handleSubmit() {
+        const accounts = AccountManager.accountsLists[this.type];
+        
         try {
             const response = await fetch(this.config.apiEndpoints.submit, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: this.config.prefix,
-                    accounts: this.accountsList
+                    accounts: accounts || []
                 })
             });
 
             const result = await response.json();
 
             if (response.ok) {
-                alert(`Đã lưu thành công ${this.accountsList.length} tài khoản!`);
-                this.accountsList = [];
-                $(`#${this.config.accountsList}`).innerHTML = '';
+                if (accounts && accounts.length > 0) {
+                    alert(`Đã lưu thành công ${accounts.length} tài khoản!`);
+                    // Clear the list after successful submission
+                    AccountManager.accountsLists[this.type] = [];
+                    this.updateAccountsList();
+                }
                 await this.fetchAndDisplayAccounts();
             } else {
                 alert(`Lỗi: ${result.message}`);
@@ -809,178 +745,4 @@ class AccountManager {
             alert('Có lỗi xảy ra khi lưu dữ liệu!');
         }
     }
-
-    async fetchAccounts(button) {
-        try {
-            button.textContent = 'Đang lấy tài khoản...';
-            button.disabled = true;
-
-            const response = await fetch(this.config.apiEndpoints.fetch, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            const result = await response.json();
-
-            if (response.ok && result.success) {
-                await Promise.all([
-                    this.fetchAndDisplayAccounts(),
-                    this.fetchAndDisplayApiAccounts()
-                ]);
-                alert(result.message);
-            } else {
-                alert(`Lỗi: ${result.message}\n${result.error || ''}`);
-            }
-        } catch (error) {
-            console.error('Lỗi:', error);
-            alert(`Lỗi: ${error.message}`);
-        } finally {
-            button.textContent = 'Lấy tài khoản mới';
-            button.disabled = false;
-        }
-    }
-
-    async fetchAndDisplayAccounts() {
-        try {
-            const response = await fetch(this.config.apiEndpoints.getAccounts);
-            if (!response.ok) throw new Error('Network response was not ok');
-            const accounts = await response.json();
-
-            const tbody = $(`#${this.config.mainTable} tbody`);
-            tbody.innerHTML = accounts
-                .sort((a, b) => b._id?.localeCompare(a._id))
-                .slice(0, 5)
-                .map(account => `
-                    <tr>
-                        <td>${account._account}</td>
-                        <td style="color: ${account.is_locked ? 'red' : 'green'}">${account.is_locked ? 'Đã Khóa' : 'Chưa khóa'}</td>
-                        <td style="color: ${account.token_expired ? 'red' : 'green'}">${account.token_expired ? 'Đã vô hiệu hóa' : 'Chưa vô hiệu hóa'}</td>
-                    </tr>
-                `).join('');
-        } catch (error) {
-            console.error('Error fetching accounts:', error);
-        }
-    }
-
-    async fetchAndDisplayApiAccounts() {
-        try {
-            const response = await fetch(this.config.apiEndpoints.getApiAccounts);
-            if (!response.ok) throw new Error('Network response was not ok');
-            const accounts = await response.json();
-
-            const tbody = $(`#${this.config.apiTable} tbody`);
-            tbody.innerHTML = accounts.map(account => `
-                <tr>
-                    <td>${account.username} <button onclick="copyToClipboard('${account.username}')" class="copy-btn">Copy</button></td>
-                    <td>${account.password} <button onclick="copyToClipboard('${account.password}')" class="copy-btn">Copy</button></td>
-                    <td style="color: ${account.is_used ? 'red' : 'green'}">${account.is_used ? 'Đã sử dụng' : 'Chưa sử dụng'}</td>
-                    <td><button onclick="accountManagers['${this.config.prefix}'].deleteApiAccount('${account._id}', this)" class="delete-btn">Xóa</button></td>
-                </tr>
-            `).join('');
-        } catch (error) {
-            console.error('Error fetching API accounts:', error);
-            throw error;
-        }
-    }
-
-    async reloadApiAccounts() {
-        const button = $(this.config.reloadBtn);
-        const originalText = showLoading(button);
-        try {
-            await this.fetchAndDisplayApiAccounts();
-        } catch (error) {
-            console.error('Lỗi khi tải lại dữ liệu:', error);
-            alert('Có lỗi xảy ra khi tải lại dữ liệu');
-        } finally {
-            restoreButton(button, originalText);
-        }
-    }
-
-    async deleteApiAccount(id, button) {
-        const originalText = showLoading(button);
-        try {
-            const response = await fetch(this.config.apiEndpoints.deleteAccount + id, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            const result = await response.json();
-            
-            if (result.success) {
-                button.closest('tr').remove();
-                alert(result.message);
-                await this.fetchAndDisplayApiAccounts();
-            } else {
-                alert(`Lỗi: ${result.message}`);
-            }
-        } catch (error) {
-            console.error('Error deleting account:', error);
-            alert('Có lỗi xảy ra khi xóa tài khoản. Vui lòng thử lại sau.');
-        } finally {
-            restoreButton(button, originalText);
-        }
-    }
-
-    async deleteUsedApiAccounts() {
-        if (!confirm('Bạn có chắc chắn muốn xóa tất cả tài khoản đã sử dụng?')) {
-            return;
-        }
-        
-        const button = $(this.config.deleteUsedBtn);
-        const originalText = showLoading(button);
-        
-        try {
-            const response = await fetch(this.config.apiEndpoints.deleteUsed, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                const tbody = $(`#${this.config.apiTable} tbody`);
-                Array.from(tbody.getElementsByTagName('tr'))
-                    .reverse()
-                    .forEach(row => {
-                        if (row.getElementsByTagName('td')[2].textContent.trim() === 'Đã sử dụng') {
-                            row.remove();
-                        }
-                    });
-                alert(result.message);
-                await this.fetchAndDisplayApiAccounts();
-            } else {
-                alert(`Lỗi: ${result.message}`);
-            }
-        } catch (error) {
-            console.error('Error deleting used accounts:', error);
-            alert('Có lỗi xảy ra khi xóa tài khoản đã sử dụng. Vui lòng thử lại sau.');
-        } finally {
-            restoreButton(button, originalText);
-        }
-    }
 }
-
-// Initialize account managers
-const accountManagers = {
-    f8bet: new AccountManager('f8bet'),
-    j88: new AccountManager('j88')
-};
-
-// Setup global functions
-window.addAccountToList = () => accountManagers.f8bet.addAccount();
-window.addAccountToListJ88 = () => accountManagers.j88.addAccount();
-window.reloadApiAccounts = () => accountManagers.f8bet.reloadApiAccounts();
-window.reloadApiAccountsJ88 = () => accountManagers.j88.reloadApiAccounts();
-window.deleteUsedApiAccounts = () => accountManagers.f8bet.deleteUsedApiAccounts();
-window.deleteUsedApiAccountsJ88 = () => accountManagers.j88.deleteUsedApiAccounts();
-window.copyToClipboard = copyToClipboard;
-
-// Initialize data on page load
-document.addEventListener('DOMContentLoaded', () => {
-    Promise.all([
-        accountManagers.f8bet.fetchAndDisplayAccounts(),
-        accountManagers.f8bet.fetchAndDisplayApiAccounts(),
-        accountManagers.j88.fetchAndDisplayAccounts(),
-        accountManagers.j88.fetchAndDisplayApiAccounts()
-    ]);
-});
