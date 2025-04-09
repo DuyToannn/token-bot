@@ -15,28 +15,37 @@ if (!mongoUrl) {
     process.exit(1);
 }
 
+// Cấu hình cho từng loại
+const CONFIG = {
+    f8bet: {
+        collection: 'f8bet',
+        api_collection: 'f8bet_accounts',
+        api_url: 'https://hservice.vn/api.php'
+    },
+    j88: {
+        collection: 'j88_2',
+        api_collection: 'j88_accounts',
+        api_url: 'https://hservice.vn/api2.php'
+    }
+};
+
 // API endpoint
 app.post('/api/submit', async (req, res) => {
     let client;
     try {
-        // Kết nối MongoDB
         client = await MongoClient.connect(mongoUrl);
         console.log('Đã kết nối thành công với MongoDB');
 
         const db = client.db('account');
+        const type = req.body.type;
 
-        // Xác định collection dựa trên loại form
-        let collection;
-        if (req.body.type === 'f8bet') {
-            collection = db.collection('f8bet');
-        } else if (req.body.type === 'j88') {
-            collection = db.collection('j88_2');
-        } else {
+        if (!CONFIG[type]) {
             throw new Error('Loại form không hợp lệ');
         }
 
-        // Lưu nhiều tài khoản
+        const collection = db.collection(CONFIG[type].collection);
         const accounts = req.body.accounts || [];
+        
         if (accounts.length === 0) {
             throw new Error('Không có tài khoản nào để lưu');
         }
@@ -60,7 +69,7 @@ app.post('/api/submit', async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: `Đã lưu thành công ${results.length} tài khoản ${req.body.type.toUpperCase()}`,
+            message: `Đã lưu thành công ${results.length} tài khoản ${type.toUpperCase()}`,
             ids: results
         });
 
@@ -71,11 +80,8 @@ app.post('/api/submit', async (req, res) => {
             message: 'Có lỗi xảy ra khi lưu dữ liệu',
             error: error.message
         });
-
     } finally {
-        if (client) {
-            await client.close();
-        }
+        if (client) await client.close();
     }
 });
 
@@ -103,31 +109,29 @@ app.get('/api/accounts/:type', async (req, res) => {
             error: error.message
         });
     } finally {
-        if (client) {
-            await client.close();
-        }
+        if (client) await client.close();
     }
 });
 
-app.post('/api/fetch-accounts', async (req, res) => {
+async function fetchAndSaveAccounts(type, req, res) {
     let client;
     try {
-        // Connect to MongoDB first to check used accounts
         client = await MongoClient.connect(mongoUrl);
         const db = client.db('account');
-        const f8betCollection = db.collection('f8bet');
+        const mainCollection = db.collection(CONFIG[type].collection);
+        const apiCollection = db.collection(CONFIG[type].api_collection);
 
-        // Get all used usernames from f8bet collection
-        const usedAccounts = await f8betCollection.find({}, { projection: { _account: 1 } }).toArray();
+        // Get used accounts
+        const usedAccounts = await mainCollection.find({}, { projection: { _account: 1 } }).toArray();
         const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
 
-        // Fetch accounts from the API
-        const apiResponse = await fetch('https://hservice.vn/api.php');
+        // Fetch from API
+        const apiResponse = await fetch(CONFIG[type].api_url);
         const apiData = await apiResponse.json();
 
-        console.log('API Response:', apiData);
+        console.log(`API Response ${type.toUpperCase()}:`, apiData);
 
-        if (!apiData || !apiData.data || !Array.isArray(apiData.data) || apiData.data.length === 0) {
+        if (!apiData?.data?.length) {
             return res.status(400).json({
                 success: false,
                 message: 'Không còn tài khoản nào khả dụng',
@@ -135,7 +139,7 @@ app.post('/api/fetch-accounts', async (req, res) => {
             });
         }
 
-        // Filter out accounts that are already used in f8bet collection
+        // Filter unused accounts
         const unusedApiAccounts = apiData.data.filter(account => 
             account.username && account.password && !usedUsernames.has(account.username)
         );
@@ -148,17 +152,15 @@ app.post('/api/fetch-accounts', async (req, res) => {
             });
         }
 
-        const collection = db.collection('f8bet_accounts');
-
-        // Get existing usernames to check for duplicates in f8bet_accounts collection
-        const existingAccounts = await collection.find({}, { projection: { username: 1 } }).toArray();
+        // Check duplicates
+        const existingAccounts = await apiCollection.find({}, { projection: { username: 1 } }).toArray();
         const existingUsernames = new Set(existingAccounts.map(acc => acc.username));
 
-        // Filter out duplicates and store new accounts
+        // Save new accounts
         const newAccounts = [];
         for (const account of unusedApiAccounts) {
             if (!existingUsernames.has(account.username)) {
-                const result = await collection.insertOne({
+                const result = await apiCollection.insertOne({
                     username: account.username,
                     password: account.password,
                     created_at: new Date()
@@ -173,10 +175,7 @@ app.post('/api/fetch-accounts', async (req, res) => {
             }
         }
 
-        // Get all accounts after insertion, sorted by creation time
-        const allAccounts = await collection.find({})
-            .sort({ created_at: -1 })
-            .toArray();
+        const allAccounts = await apiCollection.find({}).sort({ created_at: -1 }).toArray();
 
         res.status(200).json({
             success: true,
@@ -192,42 +191,32 @@ app.post('/api/fetch-accounts', async (req, res) => {
             error: error.message
         });
     } finally {
-        if (client) {
-            await client.close();
-        }
+        if (client) await client.close();
     }
-});
+}
 
-// Add endpoint to get API accounts
-app.get('/api/api-accounts', async (req, res) => {
+app.post('/api/fetch-accounts', (req, res) => fetchAndSaveAccounts('f8bet', req, res));
+app.post('/api/fetch-accounts-j88', (req, res) => fetchAndSaveAccounts('j88', req, res));
+
+async function getApiAccounts(type, req, res) {
     let client;
     try {
         client = await MongoClient.connect(mongoUrl);
         const db = client.db('account');
-        const apiAccountsCollection = db.collection('f8bet_accounts');
-        const f8betCollection = db.collection('f8bet');
+        const apiCollection = db.collection(CONFIG[type].api_collection);
+        const mainCollection = db.collection(CONFIG[type].collection);
 
-        // Get all API accounts
-        const apiAccounts = await apiAccountsCollection.find({})
-            .toArray();
-
-        // Get all used usernames from f8bet collection
-        const usedAccounts = await f8betCollection.find({}, { projection: { _account: 1 } }).toArray();
+        const apiAccounts = await apiCollection.find({}).toArray();
+        const usedAccounts = await mainCollection.find({}, { projection: { _account: 1 } }).toArray();
         const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
 
-        // Add is_used field to each API account
         const accountsWithStatus = apiAccounts.map(account => ({
             ...account,
             is_used: usedUsernames.has(account.username)
         }));
 
-        // Sort accounts: unused first, then by creation time (newest first)
         const sortedAccounts = accountsWithStatus.sort((a, b) => {
-            // First sort by usage status
-            if (a.is_used !== b.is_used) {
-                return a.is_used ? 1 : -1; // Unused accounts come first
-            }
-            // Then sort by creation time
+            if (a.is_used !== b.is_used) return a.is_used ? 1 : -1;
             return new Date(b.created_at) - new Date(a.created_at);
         });
 
@@ -240,23 +229,22 @@ app.get('/api/api-accounts', async (req, res) => {
             error: error.message
         });
     } finally {
-        if (client) {
-            await client.close();
-        }
+        if (client) await client.close();
     }
-});
+}
 
-// Add endpoint to delete used API accounts
-app.delete('/api/api-accounts/used', async (req, res) => {
+app.get('/api/api-accounts', (req, res) => getApiAccounts('f8bet', req, res));
+app.get('/api/api-accounts-j88', (req, res) => getApiAccounts('j88', req, res));
+
+async function deleteUsedAccounts(type, req, res) {
     let client;
     try {
         client = await MongoClient.connect(mongoUrl);
         const db = client.db('account');
-        const apiAccountsCollection = db.collection('f8bet_accounts');
-        const f8betCollection = db.collection('f8bet');
+        const apiCollection = db.collection(CONFIG[type].api_collection);
+        const mainCollection = db.collection(CONFIG[type].collection);
 
-        // Get all used usernames from f8bet collection
-        const usedAccounts = await f8betCollection.find({}, { projection: { _account: 1 } }).toArray();
+        const usedAccounts = await mainCollection.find({}, { projection: { _account: 1 } }).toArray();
         const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
 
         if (usedUsernames.size === 0) {
@@ -266,8 +254,7 @@ app.delete('/api/api-accounts/used', async (req, res) => {
             });
         }
 
-        // Delete all API accounts that are in the used usernames set
-        const result = await apiAccountsCollection.deleteMany({
+        const result = await apiCollection.deleteMany({
             username: { $in: Array.from(usedUsernames) }
         });
 
@@ -283,21 +270,20 @@ app.delete('/api/api-accounts/used', async (req, res) => {
             error: error.message
         });
     } finally {
-        if (client) {
-            await client.close();
-        }
+        if (client) await client.close();
     }
-});
+}
 
-// Add endpoint to delete a single API account
-app.delete('/api/api-accounts/:id', async (req, res) => {
+app.delete('/api/api-accounts/used', (req, res) => deleteUsedAccounts('f8bet', req, res));
+app.delete('/api/api-accounts-j88/used', (req, res) => deleteUsedAccounts('j88', req, res));
+
+async function deleteApiAccount(type, req, res) {
     let client;
     try {
         client = await MongoClient.connect(mongoUrl);
         const db = client.db('account');
-        const collection = db.collection('f8bet_accounts');
+        const collection = db.collection(CONFIG[type].api_collection);
 
-        // Validate ObjectId
         if (!ObjectId.isValid(req.params.id)) {
             return res.status(400).json({
                 success: false,
@@ -326,293 +312,15 @@ app.delete('/api/api-accounts/:id', async (req, res) => {
             error: error.message
         });
     } finally {
-        if (client) {
-            await client.close();
-        }
+        if (client) await client.close();
     }
-});
+}
 
-// Add endpoint to delete all API accounts
-app.delete('/api/api-accounts', async (req, res) => {
-    let client;
-    try {
-        client = await MongoClient.connect(mongoUrl);
-        const db = client.db('account');
-        const collection = db.collection('f8bet_accounts');
-
-        const result = await collection.deleteMany({});
-
-        res.json({
-            success: true,
-            message: `Đã xóa ${result.deletedCount} tài khoản thành công`
-        });
-    } catch (error) {
-        console.error('Lỗi:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Có lỗi xảy ra khi xóa tài khoản',
-            error: error.message
-        });
-    } finally {
-        if (client) {
-            await client.close();
-        }
-    }
-});
-
-app.post('/api/fetch-accounts-j88', async (req, res) => {
-    let client;
-    try {
-        // Connect to MongoDB first to check used accounts
-        client = await MongoClient.connect(mongoUrl);
-        const db = client.db('account');
-        const j88Collection = db.collection('j88_2');
-
-        // Get all used usernames from j88 collection
-        const usedAccounts = await j88Collection.find({}, { projection: { _account: 1 } }).toArray();
-        const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
-
-        // Fetch accounts from the API
-        const apiResponse = await fetch('https://hservice.vn/api2.php');
-        const apiData = await apiResponse.json();
-
-        console.log('API Response J88:', apiData);
-
-        if (!apiData || !apiData.data || !Array.isArray(apiData.data) || apiData.data.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Không còn tài khoản nào khả dụng',
-                data: []
-            });
-        }
-
-        // Filter out accounts that are already used in j88 collection
-        const unusedApiAccounts = apiData.data.filter(account => 
-            account.username && account.password && !usedUsernames.has(account.username)
-        );
-
-        if (unusedApiAccounts.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Không còn tài khoản mới nào khả dụng',
-                data: []
-            });
-        }
-
-        const collection = db.collection('j88_accounts');
-
-        // Get existing usernames to check for duplicates in j88_accounts collection
-        const existingAccounts = await collection.find({}, { projection: { username: 1 } }).toArray();
-        const existingUsernames = new Set(existingAccounts.map(acc => acc.username));
-
-        // Filter out duplicates and store new accounts
-        const newAccounts = [];
-        for (const account of unusedApiAccounts) {
-            if (!existingUsernames.has(account.username)) {
-                const result = await collection.insertOne({
-                    username: account.username,
-                    password: account.password,
-                    created_at: new Date()
-                });
-                newAccounts.push({
-                    _id: result.insertedId,
-                    username: account.username,
-                    password: account.password,
-                    created_at: new Date()
-                });
-                existingUsernames.add(account.username);
-            }
-        }
-
-        // Get all accounts after insertion, sorted by creation time
-        const allAccounts = await collection.find({})
-            .sort({ created_at: -1 })
-            .toArray();
-
-        res.status(200).json({
-            success: true,
-            message: `Đã thêm ${newAccounts.length} tài khoản mới`,
-            accounts: allAccounts
-        });
-
-    } catch (error) {
-        console.error('Lỗi chi tiết:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Có lỗi xảy ra khi lấy và lưu tài khoản',
-            error: error.message
-        });
-    } finally {
-        if (client) {
-            await client.close();
-        }
-    }
-});
-
-// Add endpoint to get J88 API accounts
-app.get('/api/api-accounts-j88', async (req, res) => {
-    let client;
-    try {
-        client = await MongoClient.connect(mongoUrl);
-        const db = client.db('account');
-        const apiAccountsCollection = db.collection('j88_accounts');
-        const j88Collection = db.collection('j88_2');
-
-        // Get all API accounts
-        const apiAccounts = await apiAccountsCollection.find({})
-            .toArray();
-
-        // Get all used usernames from j88 collection
-        const usedAccounts = await j88Collection.find({}, { projection: { _account: 1 } }).toArray();
-        const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
-
-        // Add is_used field to each API account
-        const accountsWithStatus = apiAccounts.map(account => ({
-            ...account,
-            is_used: usedUsernames.has(account.username)
-        }));
-
-        // Sort accounts: unused first, then by creation time (newest first)
-        const sortedAccounts = accountsWithStatus.sort((a, b) => {
-            // First sort by usage status
-            if (a.is_used !== b.is_used) {
-                return a.is_used ? 1 : -1; // Unused accounts come first
-            }
-            // Then sort by creation time
-            return new Date(b.created_at) - new Date(a.created_at);
-        });
-
-        res.json(sortedAccounts);
-    } catch (error) {
-        console.error('Lỗi:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Có lỗi xảy ra khi lấy dữ liệu',
-            error: error.message
-        });
-    } finally {
-        if (client) {
-            await client.close();
-        }
-    }
-});
-
-// Add endpoint to delete used J88 API accounts
-app.delete('/api/api-accounts-j88/used', async (req, res) => {
-    let client;
-    try {
-        client = await MongoClient.connect(mongoUrl);
-        const db = client.db('account');
-        const apiAccountsCollection = db.collection('j88_accounts');
-        const j88Collection = db.collection('j88_2');
-
-        // Get all used usernames from j88 collection
-        const usedAccounts = await j88Collection.find({}, { projection: { _account: 1 } }).toArray();
-        const usedUsernames = new Set(usedAccounts.map(acc => acc._account));
-
-        if (usedUsernames.size === 0) {
-            return res.status(200).json({
-                success: true,
-                message: 'Không có tài khoản nào đã sử dụng để xóa'
-            });
-        }
-
-        // Delete all API accounts that are in the used usernames set
-        const result = await apiAccountsCollection.deleteMany({
-            username: { $in: Array.from(usedUsernames) }
-        });
-
-        res.status(200).json({
-            success: true,
-            message: `Đã xóa ${result.deletedCount} tài khoản đã sử dụng thành công`
-        });
-    } catch (error) {
-        console.error('Lỗi:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Có lỗi xảy ra khi xóa tài khoản đã sử dụng',
-            error: error.message
-        });
-    } finally {
-        if (client) {
-            await client.close();
-        }
-    }
-});
-
-// Add endpoint to delete a single J88 API account
-app.delete('/api/api-accounts-j88/:id', async (req, res) => {
-    let client;
-    try {
-        client = await MongoClient.connect(mongoUrl);
-        const db = client.db('account');
-        const collection = db.collection('j88_accounts');
-
-        // Validate ObjectId
-        if (!ObjectId.isValid(req.params.id)) {
-            return res.status(400).json({
-                success: false,
-                message: 'ID không hợp lệ'
-            });
-        }
-
-        const result = await collection.deleteOne({ _id: new ObjectId(req.params.id) });
-
-        if (result.deletedCount === 0) {
-            return res.status(404).json({
-                success: false,
-                message: 'Không tìm thấy tài khoản để xóa'
-            });
-        }
-
-        res.json({
-            success: true,
-            message: 'Đã xóa tài khoản thành công'
-        });
-    } catch (error) {
-        console.error('Lỗi:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Có lỗi xảy ra khi xóa tài khoản',
-            error: error.message
-        });
-    } finally {
-        if (client) {
-            await client.close();
-        }
-    }
-});
-
-// Add endpoint to delete all API accounts
-app.delete('/api/api-accounts', async (req, res) => {
-    let client;
-    try {
-        client = await MongoClient.connect(mongoUrl);
-        const db = client.db('account');
-        const collection = db.collection('f8bet_accounts');
-
-        const result = await collection.deleteMany({});
-
-        res.json({
-            success: true,
-            message: `Đã xóa ${result.deletedCount} tài khoản thành công`
-        });
-    } catch (error) {
-        console.error('Lỗi:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Có lỗi xảy ra khi xóa tài khoản',
-            error: error.message
-        });
-    } finally {
-        if (client) {
-            await client.close();
-        }
-    }
-});
+app.delete('/api/api-accounts/:id', (req, res) => deleteApiAccount('f8bet', req, res));
+app.delete('/api/api-accounts-j88/:id', (req, res) => deleteApiAccount('j88', req, res));
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
-    console.log('MongoDB URL:', mongoUrl); // Kiểm tra URL
+    console.log('MongoDB URL:', mongoUrl);
 });
