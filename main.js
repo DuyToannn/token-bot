@@ -136,7 +136,7 @@ async function fetchAndDisplayAccounts(type) {
         if (!response.ok) throw new Error('Network response was not ok');
         const accounts = await response.json();
 
-        const tbody = document.querySelector(`#${type}Table tbody`);
+        const tbody = document.querySelector(`#${type === 'j88_2' ? 'j88' : type}Table tbody`);
         tbody.innerHTML = '';
 
         // Sort accounts to show newest first
@@ -164,6 +164,48 @@ async function fetchAndDisplayAccounts(type) {
 document.addEventListener('DOMContentLoaded', () => {
     fetchAndDisplayAccounts('f8bet');
     fetchAndDisplayApiAccounts();
+    fetchAndDisplayAccounts('j88_2');
+    fetchAndDisplayApiAccountsJ88();
+
+    // Setup J88 fetch accounts button
+    const fetchAccountsBtnJ88 = document.getElementById('fetchAccountsBtnJ88');
+    if (fetchAccountsBtnJ88) {
+        const newBtn = fetchAccountsBtnJ88.cloneNode(true);
+        fetchAccountsBtnJ88.replaceWith(newBtn);
+
+        newBtn.addEventListener('click', async () => {
+            try {
+                newBtn.textContent = 'Đang lấy tài khoản...';
+                newBtn.disabled = true;
+
+                const response = await fetch('/api/fetch-accounts-j88', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+                console.log('API Response J88:', result);
+
+                if (response.ok && result.success) {
+                    await Promise.all([
+                        fetchAndDisplayAccounts('j88_2'),
+                        fetchAndDisplayApiAccountsJ88()
+                    ]);
+                    alert(result.message);
+                } else {
+                    alert(`Lỗi: ${result.message}\n${result.error || ''}`);
+                }
+            } catch (error) {
+                console.error('Lỗi:', error);
+                alert(`Lỗi: ${error.message}`);
+            } finally {
+                newBtn.textContent = 'Lấy tài khoản mới';
+                newBtn.disabled = false;
+            }
+        });
+    }
 });
 
 // Function to show loading state
@@ -358,7 +400,6 @@ async function fetchAndDisplayApiAccounts() {
             row.innerHTML = `
                 <td>${account.username} <button onclick="copyToClipboard('${account.username}')" class="copy-btn">Copy</button></td>
                 <td>${account.password} <button onclick="copyToClipboard('${account.password}')" class="copy-btn">Copy</button></td>
-                <td>${time}</td>
                 <td style="color: ${account.is_used ? 'red' : 'green'}">${account.is_used ? 'Đã sử dụng' : 'Chưa sử dụng'}</td>
                 <td><button onclick="deleteApiAccount('${account._id}', this)" class="delete-btn">Xóa</button></td>
             `;
@@ -403,6 +444,222 @@ async function deleteUsedApiAccounts() {
             alert(result.message);
             // Cập nhật lại toàn bộ dữ liệu
             await fetchAndDisplayApiAccounts();
+        } else {
+            alert(`Lỗi: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Error deleting used accounts:', error);
+        alert('Có lỗi xảy ra khi xóa tài khoản đã sử dụng. Vui lòng thử lại sau.');
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+    }
+}
+
+// J88 Account List Management
+let accountsListJ88 = [];
+
+function addAccountToListJ88() {
+    const account = document.getElementById('j88_account').value;
+    const pat = document.getElementById('j88_pat').value;
+    const prt = document.getElementById('j88_prt').value;
+
+    if (!account || !pat || !prt) {
+        alert('Vui lòng điền đầy đủ thông tin tài khoản');
+        return;
+    }
+
+    // Thêm vào danh sách
+    accountsListJ88.push({ _account: account, _pat: pat, _prt: prt });
+
+    // Hiển thị trong danh sách
+    const accountsListElement = document.getElementById('accounts-list-j88');
+    const accountItem = document.createElement('div');
+    accountItem.className = 'account-item';
+    accountItem.innerHTML = `
+        <div class="account-info">
+            ${account}
+        </div>
+        <button type="button" class="remove-account-item" onclick="removeAccountFromListJ88(${accountsListJ88.length - 1})">Xóa</button>
+    `;
+    accountsListElement.appendChild(accountItem);
+
+    // Reset form
+    document.getElementById('j88_account').value = '';
+    document.getElementById('j88_pat').value = '';
+    document.getElementById('j88_prt').value = '';
+}
+
+function removeAccountFromListJ88(index) {
+    accountsListJ88.splice(index, 1);
+    updateAccountsListJ88();
+}
+
+function updateAccountsListJ88() {
+    const accountsListElement = document.getElementById('accounts-list-j88');
+    accountsListElement.innerHTML = '';
+    accountsListJ88.forEach((account, index) => {
+        const accountItem = document.createElement('div');
+        accountItem.className = 'account-item';
+        accountItem.innerHTML = `
+            <div class="account-info">
+                ${account._account}
+            </div>
+            <button type="button" class="remove-account-item" onclick="removeAccountFromListJ88(${index})">Xóa</button>
+        `;
+        accountsListElement.appendChild(accountItem);
+    });
+}
+
+// Handle J88 form submission
+document.getElementById('j88Form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    if (accountsListJ88.length === 0) {
+        alert('Vui lòng thêm ít nhất một tài khoản vào danh sách');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/submit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                type: 'j88',
+                accounts: accountsListJ88
+            })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            alert(`Đã lưu thành công ${accountsListJ88.length} tài khoản!`);
+            // Reset form and list
+            accountsListJ88 = [];
+            document.getElementById('accounts-list-j88').innerHTML = '';
+            // Cập nhật ngay lập tức bảng J88
+            await fetchAndDisplayAccounts('j88_2');
+        } else {
+            alert(`Lỗi: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Lỗi:', error);
+        alert('Có lỗi xảy ra khi lưu dữ liệu!');
+    }
+});
+
+async function reloadApiAccountsJ88() {
+    const button = document.querySelector('.reload-btn-j88');
+    const originalText = button.textContent;
+    button.textContent = 'Đang tải...';
+    button.disabled = true;
+
+    try {
+        await fetchAndDisplayApiAccountsJ88();
+    } catch (error) {
+        console.error('Lỗi khi tải lại dữ liệu:', error);
+        alert('Có lỗi xảy ra khi tải lại dữ liệu');
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+    }
+}
+
+async function fetchAndDisplayApiAccountsJ88() {
+    try {
+        const response = await fetch('/api/api-accounts-j88');
+        if (!response.ok) throw new Error('Network response was not ok');
+        const accounts = await response.json();
+
+        const tbody = document.querySelector('#apiAccountsTableJ88 tbody');
+        tbody.innerHTML = '';
+
+        accounts.forEach(account => {
+            const row = document.createElement('tr');
+            const date = new Date(account.created_at);
+            const time = date.toLocaleTimeString();
+            row.innerHTML = `
+                <td>${account.username} <button onclick="copyToClipboard('${account.username}')" class="copy-btn">Copy</button></td>
+                <td>${account.password} <button onclick="copyToClipboard('${account.password}')" class="copy-btn">Copy</button></td>
+                <td style="color: ${account.is_used ? 'red' : 'green'}">${account.is_used ? 'Đã sử dụng' : 'Chưa sử dụng'}</td>
+                <td><button onclick="deleteApiAccountJ88('${account._id}', this)" class="delete-btn">Xóa</button></td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error fetching API accounts:', error);
+        throw error;
+    }
+}
+
+async function deleteApiAccountJ88(id, button) {
+    const originalText = showLoading(button);
+
+    try {
+        const response = await fetch(`/api/api-accounts-j88/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const row = button.closest('tr');
+            if (row) {
+                row.remove();
+            }
+            alert(result.message);
+            await fetchAndDisplayApiAccountsJ88();
+        } else {
+            alert(`Lỗi: ${result.message}`);
+        }
+    } catch (error) {
+        console.error('Error deleting account:', error);
+        alert('Có lỗi xảy ra khi xóa tài khoản. Vui lòng thử lại sau.');
+    } finally {
+        restoreButton(button, originalText);
+    }
+}
+
+async function deleteUsedApiAccountsJ88() {
+    if (!confirm('Bạn có chắc chắn muốn xóa tất cả tài khoản đã sử dụng?')) {
+        return;
+    }
+    
+    const button = document.querySelector('.delete-used-btn-j88');
+    const originalText = button.textContent;
+    button.textContent = 'Đang xóa...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/api/api-accounts-j88/used', {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const tbody = document.querySelector('#apiAccountsTableJ88 tbody');
+            const rows = tbody.getElementsByTagName('tr');
+            for (let i = rows.length - 1; i >= 0; i--) {
+                const statusCell = rows[i].getElementsByTagName('td')[3];
+                if (statusCell.textContent.trim() === 'Đã sử dụng') {
+                    rows[i].remove();
+                }
+            }
+            alert(result.message);
+            await fetchAndDisplayApiAccountsJ88();
         } else {
             alert(`Lỗi: ${result.message}`);
         }
