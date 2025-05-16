@@ -683,7 +683,16 @@ class AccountManager {
         this.config = CONFIG[type];
         this.type = type;
         this.setupEventListeners();
-        this.isSubmitting = false; // Flag to prevent double submission
+        this.isSubmitting = false;
+        this.startAutoRefresh(); // Start auto-refresh when instance is created
+    }
+
+    startAutoRefresh() {
+        // Refresh every 5 seconds
+        setInterval(() => {
+            this.fetchAndDisplayAccounts();
+            this.fetchAndDisplayApiAccounts();
+        }, 5000);
     }
 
     setupEventListeners() {
@@ -697,7 +706,7 @@ class AccountManager {
             // Add new listener
             newForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                if (this.isSubmitting) return; // Prevent double submission
+                if (this.isSubmitting) return;
                 
                 this.isSubmitting = true;
                 await this.handleSubmit();
@@ -745,4 +754,52 @@ class AccountManager {
             alert('Có lỗi xảy ra khi lưu dữ liệu!');
         }
     }
+
+    async fetchAndDisplayAccounts() {
+        try {
+            const response = await fetch(this.config.apiEndpoints.getAccounts);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const accounts = await response.json();
+
+            const tbody = $(`#${this.config.mainTable} tbody`);
+            if (!tbody) return;
+
+            tbody.innerHTML = accounts
+                .sort((a, b) => b._id?.localeCompare(a._id))
+                .slice(0, 5)
+                .map(account => `
+                    <tr>
+                        <td>${account._account}</td>
+                        <td style="color: ${account.is_locked ? 'red' : 'green'}">${account.is_locked ? 'Đã Khóa' : 'Chưa khóa'}</td>
+                        <td style="color: ${account.token_expired ? 'red' : 'green'}">${account.token_expired ? 'Đã vô hiệu hóa' : 'Chưa vô hiệu hóa'}</td>
+                    </tr>
+                `).join('');
+        } catch (error) {
+            console.error('Error fetching accounts:', error);
+        }
+    }
+
+    async fetchAndDisplayApiAccounts() {
+        try {
+            const response = await fetch(this.config.apiEndpoints.getApiAccounts);
+            if (!response.ok) throw new Error('Network response was not ok');
+            const accounts = await response.json();
+
+            const tbody = $(`#${this.config.apiTable} tbody`);
+            if (!tbody) return;
+
+            tbody.innerHTML = accounts.map(account => `
+                <tr>
+                    <td>${account.username} <button onclick="copyToClipboard('${account.username}')" class="copy-btn">Copy</button></td>
+                    <td>${account.password} <button onclick="copyToClipboard('${account.password}')" class="copy-btn">Copy</button></td>
+                    <td style="color: ${account.is_used ? 'red' : 'green'}">${account.is_used ? 'Đã sử dụng' : 'Chưa sử dụng'}</td>
+                    <td><button onclick="accountManagers['${this.config.prefix}'].deleteApiAccount('${account._id}', this)" class="delete-btn">Xóa</button></td>
+                </tr>
+            `).join('');
+        } catch (error) {
+            console.error('Error fetching API accounts:', error);
+        }
+    }
+
+    // ... rest of the class methods remain unchanged ...
 }
