@@ -319,6 +319,59 @@ async function deleteApiAccount(type, req, res) {
 app.delete('/api/api-accounts/:id', (req, res) => deleteApiAccount('f8bet', req, res));
 app.delete('/api/api-accounts-j88/:id', (req, res) => deleteApiAccount('j88', req, res));
 
+// API cho bên thứ 2 gửi tài khoản lên
+app.post('/api/external/submit', async (req, res) => {
+    let client;
+    try {
+        const { type, _account, _pat, _prt } = req.body;
+        if (!type || !_account || !_pat || !_prt) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thiếu thông tin type, _account, _pat hoặc _prt'
+            });
+        }
+        if (!CONFIG[type]) {
+            return res.status(400).json({
+                success: false,
+                message: 'Loại tài khoản không hợp lệ'
+            });
+        }
+        client = await MongoClient.connect(mongoUrl);
+        const db = client.db('account');
+        const collection = db.collection(CONFIG[type].collection);
+        // Kiểm tra trùng tài khoản
+        const existed = await collection.findOne({ _account });
+        if (existed) {
+            return res.status(409).json({
+                success: false,
+                message: 'Tài khoản đã tồn tại'
+            });
+        }
+        const result = await collection.insertOne({
+            _account,
+            _pat,
+            _prt,
+            is_locked: false,
+            token_expired: false,
+            created_at: new Date()
+        });
+        res.status(201).json({
+            success: true,
+            message: 'Đã lưu tài khoản thành công',
+            id: result.insertedId
+        });
+    } catch (error) {
+        console.error('Lỗi:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Có lỗi xảy ra khi lưu dữ liệu',
+            error: error.message
+        });
+    } finally {
+        if (client) await client.close();
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
