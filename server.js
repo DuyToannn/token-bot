@@ -372,6 +372,49 @@ app.post('/api/external/submit', async (req, res) => {
     }
 });
 
+app.post('/api/external/j88-accounts', async (req, res) => {
+    let client;
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thiếu username hoặc password'
+            });
+        }
+        client = await MongoClient.connect(mongoUrl);
+        const db = client.db('account');
+        const collection = db.collection('j88_accounts');
+        // Kiểm tra trùng username
+        const existed = await collection.findOne({ username });
+        if (existed) {
+            return res.status(409).json({
+                success: false,
+                message: 'Tài khoản đã tồn tại'
+            });
+        }
+        const result = await collection.insertOne({
+            username,
+            password,
+            created_at: new Date()
+        });
+        res.status(201).json({
+            success: true,
+            message: 'Đã thêm tài khoản J88 API thành công',
+            id: result.insertedId
+        });
+    } catch (error) {
+        console.error('Lỗi:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Có lỗi xảy ra khi lưu dữ liệu',
+            error: error.message
+        });
+    } finally {
+        if (client) await client.close();
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
