@@ -501,6 +501,29 @@ app.post('/api/external/hi88-accounts', async (req, res) => {
     }
 });
 
+app.get('/api/external/j88-accounts', async (req, res) => {
+    let client;
+    try {
+        client = await MongoClient.connect(mongoUrl);
+        const db = client.db('account');
+        const collection = db.collection('j88_accounts');
+        const accounts = await collection.find({}).toArray();
+        res.status(200).json({
+            success: true,
+            accounts
+        });
+    } catch (error) {
+        console.error('Lỗi:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Có lỗi xảy ra khi lấy dữ liệu',
+            error: error.message
+        });
+    } finally {
+        if (client) await client.close();
+    }
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
     console.log(`Server đang chạy tại http://localhost:${PORT}`);
